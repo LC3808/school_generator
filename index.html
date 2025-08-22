@@ -73,8 +73,8 @@
         </select>
       </div>
     </div>
-    <label>세부 활동/성과 (선택)</label>
-    <textarea id="details" placeholder="예: 팀 자료 조사 총괄, 변수 통제 실험 설계 등"></textarea>
+    <label>세부 활동/성과 (키워드만 적어도 됩니다. 쉼표로 구분)</label>
+    <textarea id="details" placeholder="예: 변수 통제, 실험 설계, 자료 조사, 발표"></textarea>
     <div class="row" style="margin-top:10px">
       <button class="btn primary" id="generate">문장 생성</button>
       <button class="btn" id="shuffle">다시 생성</button>
@@ -145,6 +145,39 @@ function hasBatchim(word){
 }
 function josa(word, pair){ const [a,b]=pair.split('/'); return hasBatchim(word)?a:b; }
 
+// ===== 키워드 → 자연어 문구 변환 =====
+function splitKeywords(raw){
+  return String(raw||'')
+    .split(/[\n,\/;·∙ㆍ]/g)
+    .map(s=>sanitize(s))
+    .filter(Boolean);
+}
+function makeDetailPhrase(raw, fallback){
+  const items = splitKeywords(raw);
+  const list = (items.length? items : splitKeywords(fallback));
+  if(!list.length) return '관련 주제';
+  // 동사구가 없는 명사라도 자연스럽게 연결되도록 가벼운 동사 프레이즈 부여
+  const actionsMid = ['조사·정리하고','설계·검증하며','분석하고','적용하여'];
+  const actionEnd = ['정리하였다','분석하였다','적용하였다'];
+  // 1개만 있으면 간결하게
+  if(list.length===1){
+    const w=list[0]; return `${w}${josa(w,'을/를')} 중심으로 조사·정리하였다`;
+  }
+  // 2개 이상이면 연결 어미를 순서대로 부여
+  const segs=[];
+  for(let i=0;i<list.length;i++){
+    const w=list[i];
+    if(i<list.length-1){
+      const act = actionsMid[Math.min(i, actionsMid.length-1)];
+      segs.push(`${w}${josa(w,'을/를')} ${act}`);
+    }else{
+      const end = actionEnd[Math.min(i-1, actionEnd.length-1)];
+      segs.push(`${w}${josa(w,'을/를')} ${end}`);
+    }
+  }
+  return segs.join(', ');
+}
+
 // ===== 템플릿 (details는 문장 내 1회만) =====
 const templates={
   basic:[
@@ -185,25 +218,25 @@ function generate(){
   const tone=document.getElementById('tone').value;
   if(!ev){ alert('행사/키워드를 입력하세요.'); return; }
   const defaults={
-    '독서 토론':'주제 관련 자료 탐독과 근거 제시 토론 참여',
-    '과학 탐구':'변수 통제 실험 설계와 결과 분석',
-    '봉사 활동':'지역사회 요구를 파악하여 지속적 봉사 수행',
-    '동아리':'정기 모임에서 발표와 피드백 순환',
-    '교내 대회':'사전 학습 계획 수립 및 모의 연습',
-    '공모전':'주제 분석과 제출물 완성도 향상에 기여',
-    '발표/세미나':'자료 조사와 발표 리허설 주도',
-    '체육대회':'역할 수행과 팀워크 강화',
-    '진로 탐색':'직무 정보 탐색과 인터뷰 정리',
-    '캠프/연수':'기초 지식 보강과 활동 보고서 작성'
+    '독서 토론':'주제 관련 자료 탐독, 근거 제시 토론',
+    '과학 탐구':'변수 통제, 실험 설계, 결과 분석',
+    '봉사 활동':'지역사회 요구 파악, 지속적 봉사',
+    '동아리':'정기 모임 발표, 피드백 순환',
+    '교내 대회':'사전 학습 계획, 모의 연습',
+    '공모전':'주제 분석, 제출물 완성도 향상',
+    '발표/세미나':'자료 조사, 발표 리허설',
+    '체육대회':'역할 수행, 팀워크 강화',
+    '진로 탐색':'직무 정보 탐색, 인터뷰 정리',
+    '캠프/연수':'기초 지식 보강, 활동 보고서 작성'
   };
-  const det = detailsInput || defaults[cat] || '관련 활동';
   const dp = formatDateParen(dateRaw); // (YYYY.MM.DD.-YYYY.MM.DD.) 또는 (YYYY.MM.)
   const evdate = ev + (dp||'');
+  const detPhrase = makeDetailPhrase(detailsInput, defaults[cat]||'관련 주제');
   const pool = templates[tone] || templates.basic;
   const tpl = pick(pool);
   let text = tpl
     .replaceAll('{evdate}', evdate)
-    .replaceAll('{details}', det)
+    .replaceAll('{details}', detPhrase)
     .replaceAll('{j_에}', josa(evdate,'에/에'))
     .replaceAll('{j_에서}', josa(evdate,'에서/에서'))
     .replaceAll('{j_을를}', josa(evdate,'을/를'));
