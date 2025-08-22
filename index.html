@@ -31,8 +31,20 @@
 <div class="wrap">
   <div class="card">
     <h1>생기부 문장 생성기 <span class="chip">200~500자</span></h1>
-    <div class="chips"><span class="chip">이름 미포함</span><span class="chip">행사명 뒤 (YYYY.MM.DD.-YYYY.MM.DD.)</span><span class="chip">브라우저 로컬 처리</span></div>
+    <div class="chips"><span class="chip">이름·학번은 문장에 미포함</span><span class="chip">행사명 뒤 (YYYY.MM.DD.-YYYY.MM.DD.)</span><span class="chip">브라우저 로컬 처리</span></div>
+
     <div class="row" style="margin-top:10px">
+      <div>
+        <label>학생 이름 <span style="opacity:.7">(문장에 포함되지 않음)</span></label>
+        <input id="sname" placeholder="예: 김태윤" />
+      </div>
+      <div>
+        <label>학번 <span style="opacity:.7">(문장에 포함되지 않음)</span></label>
+        <input id="sid" placeholder="예: 2025-1234" />
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:6px">
       <div>
         <label>행사/키워드</label>
         <input id="event" placeholder="예: 과학탐구 토론대회" />
@@ -72,8 +84,9 @@
   </div>
 
   <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <strong>생성 결과</strong>
+      <span class="counter" id="who"></span>
       <span class="counter" id="count">0자 / 500자</span>
     </div>
     <div id="output" class="output" style="margin-top:10px;min-height:120px"></div>
@@ -110,9 +123,16 @@ function formatDateParen(raw){
   return body? '('+body+')' : '';
 }
 function charLen(s){ return [...(s||'')].length }
-function clamp200to500(s, details){
+function clamp200to500_noDetailRepeat(s){
   let t=(s||'').trim();
-  while(charLen(t)<200){ t += ' ' + (details||'관련 활동') + '을(를) 통해 탐구를 심화하고 결과를 정리하였다.'; if(charLen(t)>520) break; }
+  const fillers=[
+    ' 활동 전반을 성실히 수행하고 결과를 체계적으로 정리하였다.',
+    ' 과정 평가를 바탕으로 다음 학습 계획을 수립하였다.',
+    ' 관련 자료를 추가로 검토하여 탐구의 깊이를 더했다.',
+    ' 협업과 소통을 통해 결과물의 완성도를 높였다.'
+  ];
+  let i=0;
+  while(charLen(t)<200){ t += fillers[i%fillers.length]; i++; if(charLen(t)>520) break; }
   if(charLen(t)>500){ t=[...t].slice(0,500).join(''); if(!/[.!?다]$/.test(t)) t+='…'; }
   return t;
 }
@@ -125,7 +145,7 @@ function hasBatchim(word){
 }
 function josa(word, pair){ const [a,b]=pair.split('/'); return hasBatchim(word)?a:b; }
 
-// ===== 템플릿 =====
+// ===== 템플릿 (details는 문장 내 1회만) =====
 const templates={
   basic:[
     "{evdate}{j_에} 참여하여 {details}을(를) 중심으로 활동 전반을 성실히 수행하였다. 자료 탐색→정리→발표의 과정을 꾸준히 이어가며 책임감을 보였고, 해당 경험을 이후 학습으로 연결해 이해의 폭을 넓혔다.",
@@ -151,6 +171,12 @@ const templates={
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)] }
 
 // ===== 생성 =====
+function updateWho(){
+  const name=sanitize(document.getElementById('sname').value);
+  const sid=sanitize(document.getElementById('sid').value);
+  const who=[name?`학생: ${name}`:null, sid?`학번: ${sid}`:null].filter(Boolean).join(' · ');
+  document.getElementById('who').textContent = who || '';
+}
 function generate(){
   const ev=sanitize(document.getElementById('event').value);
   const dateRaw=sanitize(document.getElementById('date').value);
@@ -181,12 +207,14 @@ function generate(){
     .replaceAll('{j_에}', josa(evdate,'에/에'))
     .replaceAll('{j_에서}', josa(evdate,'에서/에서'))
     .replaceAll('{j_을를}', josa(evdate,'을/를'));
-  text = clamp200to500(text, det);
+  text = clamp200to500_noDetailRepeat(text);
   document.getElementById('output').textContent = text;
   document.getElementById('count').textContent = charLen(text) + '자 / 500자';
+  updateWho();
 }
 
 // ===== 이벤트 =====
+['sname','sid'].forEach(id=>document.getElementById(id).addEventListener('input', updateWho));
 document.getElementById('generate').addEventListener('click', generate);
 document.getElementById('shuffle').addEventListener('click', generate);
 document.getElementById('copy').addEventListener('click', async()=>{
@@ -195,9 +223,15 @@ document.getElementById('copy').addEventListener('click', async()=>{
 });
 document.getElementById('download').addEventListener('click', ()=>{
   const t=document.getElementById('output').textContent.trim(); if(!t) return;
+  const name=sanitize(document.getElementById('sname').value); const sid=sanitize(document.getElementById('sid').value);
+  const label=[name,sid].filter(Boolean).join('_');
+  const fname = '생기부_문장' + (label? '_' + label : '') + '.txt';
   const blob=new Blob([t],{type:'text/plain;charset=utf-8'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='생기부_문장.txt'; a.click(); URL.revokeObjectURL(a.href);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click(); URL.revokeObjectURL(a.href);
 });
+
+// 초기 렌더
+updateWho();
 </script>
 </body>
 </html>
